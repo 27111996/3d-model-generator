@@ -1,0 +1,5 @@
+models/libraries/
+outputs/
+venv/
+.next/
+node_modules/
