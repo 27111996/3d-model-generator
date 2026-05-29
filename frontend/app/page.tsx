@@ -10,38 +10,7 @@ export default function Home() {
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
 
-  const generateOpenSCAD = async () => {
-    const res = await fetch('http://172.20.255.28:8000/generate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt })
-    });
-    const data = await res.json();
-    if (data.image) {
-      setImage('data:image/png;base64,' + data.image);
-      setCode(data.scad_code || '');
-    } else {
-      setError('Render failed!');
-    }
-  };
-
-  const refineModel = async () => {
-    if (!code && !image) { setError('Generate a model first!'); return; }
-    const res = await fetch('http://172.20.255.28:8000/refine', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ previous_scad: code, instruction: refineText })
-    });
-    const data = await res.json();
-    if (data.image) {
-      setImage('data:image/png;base64,' + data.image);
-      if (data.scad_code) setCode(data.scad_code);
-      setRefineText('');
-      setStatus('✅ Refined!');
-    } else {
-      setError('Refine failed!');
-    }
-  };
+  const API = 'http://172.20.255.28:8000';
 
   const generate = async () => {
     setLoading(true);
@@ -50,8 +19,20 @@ export default function Home() {
     setCode('');
     setStatus('Generating...');
     try {
-      await generateOpenSCAD();
-      setStatus('');
+      const res = await fetch(`${API}/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt })
+      });
+      const data = await res.json();
+      console.log('Generate response:', data.scad_code?.slice(0,80));
+      if (data.image) {
+        setImage('data:image/png;base64,' + data.image);
+        setCode(data.scad_code || prompt);
+        setStatus('');
+      } else {
+        setError('Render failed!');
+      }
     } catch (e: any) {
       setError('Error: ' + e?.message);
     }
@@ -62,8 +43,24 @@ export default function Home() {
     setLoading(true);
     setError('');
     setStatus('Refining...');
+    const scadToUse = code || prompt;
+    console.log('Refining with code:', scadToUse?.slice(0,80));
     try {
-      await refineModel();
+      const res = await fetch(`${API}/refine`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ previous_scad: scadToUse, instruction: refineText })
+      });
+      const data = await res.json();
+      console.log('Refine response:', data.scad_code?.slice(0,80));
+      if (data.image) {
+        setImage('data:image/png;base64,' + data.image);
+        if (data.scad_code) setCode(data.scad_code);
+        setRefineText('');
+        setStatus('✅ Refined!');
+      } else {
+        setError('Refine failed!');
+      }
     } catch (e: any) {
       setError('Error: ' + e?.message);
     }
@@ -91,7 +88,7 @@ export default function Home() {
               <h2 className="text-xl font-semibold mb-2 mt-2">🔧 Refine</h2>
               <textarea
                 className="w-full bg-gray-800 rounded-xl p-4 text-white resize-none h-16 mb-3"
-                placeholder="e.g. make it taller, make it bigger..."
+                placeholder="e.g. make it bigger, make it taller..."
                 value={refineText}
                 onChange={(e) => setRefineText(e.target.value)}
               />
@@ -99,7 +96,7 @@ export default function Home() {
                 className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 rounded-xl py-3 font-semibold transition mb-3">
                 {loading && status === 'Refining...' ? '⏳ Refining...' : '✏️ Refine Model'}
               </button>
-              <a href="http://172.20.255.28:8000/outputs/latest.stl" download
+              <a href={`${API}/download/stl`} download="model.stl"
                 className="block text-center w-full bg-green-600 hover:bg-green-700 rounded-xl py-3 font-semibold transition">
                 ⬇️ Download STL
               </a>

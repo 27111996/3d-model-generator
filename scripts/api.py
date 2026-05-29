@@ -164,7 +164,19 @@ MODIFIED CODE:"""
 
     # fallback — previous_scad use ചെയ്യൂ
     if not code.strip():
-        code = request.previous_scad
+        instruction_lower = request.instruction.lower()
+        prev = request.previous_scad
+        if any(w in instruction_lower for w in ['bigger', 'larger', 'large']):
+            import re as re2
+            code = re2.sub(r'(\d+\.?\d*)', lambda m: str(round(float(m.group())*1.5, 1)), prev)
+        elif any(w in instruction_lower for w in ['smaller', 'tiny', 'small']):
+            import re as re2
+            code = re2.sub(r'(\d+\.?\d*)', lambda m: str(round(float(m.group())*0.7, 1)), prev)
+        elif any(w in instruction_lower for w in ['taller', 'tall']):
+            import re as re2
+            code = re2.sub(r'h=(\d+\.?\d*)', lambda m: f"h={round(float(m.group(1))*1.5, 1)}", prev)
+        else:
+            code = prev
 
     render(code, scad_path, png_path, stl_path)
 
@@ -220,3 +232,15 @@ async def route(request: PromptRequest):
         "parametric_score": parametric_score,
         "ai_score": ai_score
     }
+
+from fastapi.responses import FileResponse
+import glob
+
+@app.get("/download/stl")
+async def download_stl():
+    """Latest STL file download"""
+    stl_files = glob.glob("/home/sandra/3d_model_generator/outputs/*.stl")
+    if not stl_files:
+        return {"error": "No STL files found"}
+    latest_stl = max(stl_files, key=os.path.getctime)
+    return FileResponse(latest_stl, media_type="application/octet-stream", filename="model.stl")
