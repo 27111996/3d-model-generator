@@ -186,3 +186,37 @@ async def export(filename: str):
 @app.get("/")
 async def root():
     return {"message": "3D Model Generator API Running!"}
+
+@app.post("/route")
+async def route(request: PromptRequest):
+    """Router — parametric or ai_generator decide ചെയ്യുന്നു"""
+    prompt_lower = request.prompt.lower()
+    
+    # Parametric keywords
+    parametric_keywords = [
+        'box', 'cube', 'sphere', 'cylinder', 'cone', 'chair', 'table',
+        'house', 'rocket', 'snowman', 'tree', 'car', 'bottle', 'trophy',
+        'mushroom', 'cat', 'mm', 'cm', 'height', 'width', 'radius',
+        'geometric', 'simple', 'basic'
+    ]
+    
+    # AI keywords  
+    ai_keywords = [
+        'realistic', 'organic', 'animal', 'person', 'face', 'dragon',
+        'complex', 'detailed', 'artistic', 'sculpture', 'photo'
+    ]
+    
+    parametric_score = sum(1 for k in parametric_keywords if k in prompt_lower)
+    ai_score = sum(1 for k in ai_keywords if k in prompt_lower)
+    
+    if ai_score > parametric_score:
+        path = "ai_generator"
+    else:
+        path = "parametric"
+    
+    return {
+        "prompt": request.prompt,
+        "path": path,
+        "parametric_score": parametric_score,
+        "ai_score": ai_score
+    }
