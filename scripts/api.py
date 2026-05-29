@@ -13,6 +13,10 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 class PromptRequest(BaseModel):
     prompt: str
 
+class RefineRequest(BaseModel):
+    previous_scad: str
+    instruction: str
+
 SHAPES = {
     "chair": """union() {
   translate([0,0,12]) cube([40,40,4], center=true);
@@ -104,6 +108,12 @@ def find_shape(prompt: str) -> str:
             break
     return code
 
+def render(scad_code, scad_path, png_path, stl_path):
+    with open(scad_path, "w") as f:
+        f.write(scad_code)
+    subprocess.run(["openscad","--imgsize=800,600","--autocenter","--viewall","-o",png_path,scad_path], capture_output=True)
+    subprocess.run(["openscad","-o",stl_path,scad_path], capture_output=True)
+
 @app.post("/generate")
 async def generate(request: PromptRequest):
     name = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -111,17 +121,67 @@ async def generate(request: PromptRequest):
     png_path = f"/home/sandra/3d_model_generator/outputs/{name}.png"
     stl_path = f"/home/sandra/3d_model_generator/outputs/{name}.stl"
     scad_code = find_shape(request.prompt)
-    with open(scad_path, "w") as f:
-        f.write(scad_code)
-    result = subprocess.run(
-        ["openscad","--imgsize=800,600","--autocenter","--viewall","-o",png_path,scad_path],
-        capture_output=True, text=True
-    )
+    render(scad_code, scad_path, png_path, stl_path)
     if not os.path.exists(png_path):
-        return {"error": "Render failed", "scad_code": scad_code, "openscad_error": result.stderr}
+        return {"error": "Render failed", "scad_code": scad_code}
     with open(png_path, "rb") as f:
         img_base64 = base64.b64encode(f.read()).decode()
     return {"scad_code": scad_code, "image": img_base64, "status": "success"}
+
+@app.post("/refine")
+async def refine(request: RefineRequest):
+    name = datetime.now().strftime("%Y%m%d_%H%M%S")
+    scad_path = f"/home/sandra/3d_model_generator/models/{name}.scad"
+    png_path = f"/home/sandra/3d_model_generator/outputs/{name}.png"
+    stl_path = f"/home/sandra/3d_model_generator/outputs/{name}.stl"
+
+    system_prompt = f"""You are an OpenSCAD code modifier.
+CURRENT CODE:
+{request.previous_scad}
+
+INSTRUCTION: {request.instruction}
+
+RULES:
+- Return ONLY modified OpenSCAD code
+- NO explanation, NO markdown
+- If bigger or larger: multiply all numbers by 1.5
+- If smaller: multiply all numbers by 0.7
+- If taller: increase h values by 1.5x
+
+MODIFIED CODE:"""
+
+    result = subprocess.run(
+        ["ollama", "run", "llama3.2:3b", system_prompt],
+        capture_output=True, text=True
+    )
+    code = result.stdout.strip()
+    code = re.sub(r'```[a-zA-Z]*', '', code)
+    code = code.replace('```', '').strip()
+    for keyword in ['union','difference','cube','cylinder','sphere','translate']:
+        if keyword in code:
+            code = code[code.find(keyword):]
+            break
+
+    # fallback — previous_scad use ചെയ്യൂ
+    if not code.strip():
+        code = request.previous_scad
+
+    render(code, scad_path, png_path, stl_path)
+
+    if not os.path.exists(png_path):
+        return {"error": "Render failed", "scad_code": code}
+
+    with open(png_path, "rb") as f:
+        img_base64 = base64.b64encode(f.read()).decode()
+
+    return {"scad_code": code, "image": img_base64, "status": "success"}
+
+@app.get("/export/{filename}")
+async def export(filename: str):
+    stl_path = f"/home/sandra/3d_model_generator/outputs/{filename}.stl"
+    if os.path.exists(stl_path):
+        return {"stl_path": stl_path, "status": "success"}
+    return {"error": "File not found"}
 
 @app.get("/")
 async def root():

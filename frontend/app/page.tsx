@@ -3,85 +3,121 @@ import { useState } from 'react';
 
 export default function Home() {
   const [prompt, setPrompt] = useState('');
+  const [refineText, setRefineText] = useState('');
   const [image, setImage] = useState('');
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState('');
   const [error, setError] = useState('');
+
+  const generateOpenSCAD = async () => {
+    const res = await fetch('http://172.20.255.28:8000/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt })
+    });
+    const data = await res.json();
+    if (data.image) {
+      setImage('data:image/png;base64,' + data.image);
+      setCode(data.scad_code || '');
+    } else {
+      setError('Render failed!');
+    }
+  };
+
+  const refineModel = async () => {
+    if (!code && !image) { setError('Generate a model first!'); return; }
+    const res = await fetch('http://172.20.255.28:8000/refine', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ previous_scad: code, instruction: refineText })
+    });
+    const data = await res.json();
+    if (data.image) {
+      setImage('data:image/png;base64,' + data.image);
+      if (data.scad_code) setCode(data.scad_code);
+      setRefineText('');
+      setStatus('✅ Refined!');
+    } else {
+      setError('Refine failed!');
+    }
+  };
 
   const generate = async () => {
     setLoading(true);
     setError('');
     setImage('');
+    setCode('');
+    setStatus('Generating...');
     try {
-      const res = await fetch('http://172.20.255.28:8000/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt })
-      });
-      const data = await res.json();
-      if (data.status === 'success') {
-        setImage('data:image/png;base64,' + data.image);
-        setCode(data.scad_code);
-      } else {
-        setError('Render failed: ' + data.scad_code);
-        setCode(data.scad_code);
-      }
-    } catch (e) {
-      setError('Backend error!');
+      await generateOpenSCAD();
+      setStatus('');
+    } catch (e: any) {
+      setError('Error: ' + e?.message);
+    }
+    setLoading(false);
+  };
+
+  const refine = async () => {
+    setLoading(true);
+    setError('');
+    setStatus('Refining...');
+    try {
+      await refineModel();
+    } catch (e: any) {
+      setError('Error: ' + e?.message);
     }
     setLoading(false);
   };
 
   return (
     <main className="min-h-screen bg-gray-950 text-white p-6">
-      <h1 className="text-3xl font-bold text-center mb-8">
-        🧊 LLM-Based 3D Model Generator
-      </h1>
+      <h1 className="text-3xl font-bold text-center mb-8">🧊 LLM-Based 3D Model Generator</h1>
       <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="bg-gray-900 rounded-2xl p-6">
-          <h2 className="text-xl font-semibold mb-4">💬 Describe your 3D object</h2>
+          <h2 className="text-xl font-semibold mb-4">💬 Generate</h2>
           <textarea
-            className="w-full bg-gray-800 rounded-xl p-4 text-white resize-none h-32 mb-4"
-            placeholder="e.g. a chair with 4 legs..."
+            className="w-full bg-gray-800 rounded-xl p-4 text-white resize-none h-24 mb-4"
+            placeholder="e.g. snowman, chair, house..."
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
           />
-          <button
-            onClick={generate}
-            disabled={loading || !prompt}
-            className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 rounded-xl py-3 font-semibold transition"
-          >
-            {loading ? '⏳ Generating...' : '🚀 Generate 3D Model'}
+          <button onClick={generate} disabled={loading || !prompt}
+            className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 rounded-xl py-3 font-semibold transition mb-4">
+            {loading && status === 'Generating...' ? '⏳ Generating...' : '🚀 Generate 3D Model'}
           </button>
-          {error && (
-            <div className="mt-4 bg-red-900 rounded-xl p-4 text-sm text-red-200">
-              {error}
-            </div>
+          {image && (
+            <>
+              <h2 className="text-xl font-semibold mb-2 mt-2">🔧 Refine</h2>
+              <textarea
+                className="w-full bg-gray-800 rounded-xl p-4 text-white resize-none h-16 mb-3"
+                placeholder="e.g. make it taller, make it bigger..."
+                value={refineText}
+                onChange={(e) => setRefineText(e.target.value)}
+              />
+              <button onClick={refine} disabled={loading || !refineText}
+                className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 rounded-xl py-3 font-semibold transition mb-3">
+                {loading && status === 'Refining...' ? '⏳ Refining...' : '✏️ Refine Model'}
+              </button>
+              <a href="http://172.20.255.28:8000/outputs/latest.stl" download
+                className="block text-center w-full bg-green-600 hover:bg-green-700 rounded-xl py-3 font-semibold transition">
+                ⬇️ Download STL
+              </a>
+            </>
           )}
+          {status && <div className="mt-4 bg-blue-900 rounded-xl p-3 text-sm text-blue-200">{status}</div>}
+          {error && <div className="mt-4 bg-red-900 rounded-xl p-3 text-sm text-red-200">{error}</div>}
           {code && (
             <div className="mt-4">
-              <h3 className="text-sm font-semibold text-gray-400 mb-2">OpenSCAD Code:</h3>
-              <pre className="bg-gray-800 rounded-xl p-4 text-sm overflow-auto max-h-48 text-green-400">
-                {code}
-              </pre>
+              <h3 className="text-sm text-gray-400 mb-2">OpenSCAD Code:</h3>
+              <pre className="bg-gray-800 rounded-xl p-4 text-sm overflow-auto max-h-48 text-green-400">{code}</pre>
             </div>
           )}
         </div>
         <div className="bg-gray-900 rounded-2xl p-6 flex flex-col items-center justify-center min-h-64">
           <h2 className="text-xl font-semibold mb-4">🧊 3D Preview</h2>
-          {loading && (
-            <div className="text-center">
-              <p className="text-4xl mb-4 animate-pulse">⚙️</p>
-              <p className="text-gray-400">Generating 3D model...</p>
-            </div>
-          )}
-          {image && !loading && (
-            <img
-              src={image}
-              alt="3D Model"
-              className="rounded-xl w-full"
-            />
-          )}
+          {loading && <div className="text-center"><p className="text-4xl mb-4 animate-pulse">⚙️</p><p className="text-gray-400">{status}</p></div>}
+          {image && !loading && <img src={image} alt="3D" className="rounded-xl w-full"/>}
           {!image && !loading && (
             <div className="text-gray-500 text-center">
               <p className="text-6xl mb-4">🧊</p>
