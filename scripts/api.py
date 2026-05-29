@@ -39,8 +39,8 @@ SHAPES = {
 }""",
     "snowman": """union() {
   sphere(r=10);
-  translate([0,0,18]) sphere(r=7);
-  translate([0,0,28]) sphere(r=5);
+  translate([0,0,17]) sphere(r=8);
+  translate([0,0,30]) sphere(r=6);
 }""",
     "rocket": """union() {
   cylinder(h=40, r=5);
@@ -82,6 +82,13 @@ SHAPES = {
   translate([-18,15,0]) cylinder(h=5, r=8);
   translate([18,15,0]) cylinder(h=5, r=8);
 }""",
+    "rectangle": "cube([40,20,5], center=true);",
+    "square": "cube([30,30,5], center=true);",
+    "triangle": "linear_extrude(height=5) polygon(points=[[0,0],[30,0],[15,25]]);",
+    "hexagon": "linear_extrude(height=5) circle(r=20, $fn=6);",
+    "pentagon": "linear_extrude(height=5) circle(r=20, $fn=5);",
+    "ring": "difference() { cylinder(h=5, r=20); cylinder(h=5, r=15); }",
+    "pyramid": "polyhedron(points=[[0,0,0],[30,0,0],[30,30,0],[0,30,0],[15,15,20]], faces=[[0,1,2,3],[0,1,4],[1,2,4],[2,3,4],[3,0,4]]);",
     "bottle": """union() {
   cylinder(h=30, r=10);
   translate([0,0,30]) cylinder(h=15, r1=10, r2=4);
