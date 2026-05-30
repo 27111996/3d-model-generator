@@ -3,3 +3,4 @@ outputs/
 venv/
 .next/
 node_modules/
+.env
