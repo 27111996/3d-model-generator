@@ -4,8 +4,8 @@ A web app that converts text prompts into 3D models using OpenSCAD and Mistral A
 
 ## Team
 - **Shyby ** — Backend API (FastAPI, GCP, OpenSCAD)
-- **Athulya ** — Frontend (React/Next.js)
-- **Sandra ** — Testing (50 prompt test suite)
+- **Athulya ** — Testing (50 prompt test suite) 
+- **Sandra ** — Frontend (React/Next.js)
 
 ## Server
 - **VM:** model-server, GCP europe-west3-a
